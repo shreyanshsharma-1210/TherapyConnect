@@ -54,22 +54,23 @@ function Newsletter() {
             You're subscribed! Thank you.
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="flex gap-3">
+          <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 w-full">
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Your email address"
               required
-              className="flex-1 bg-white/10 border border-white/20 rounded-btn px-4 py-3 min-h-[44px] text-body-sm text-white placeholder-gray-500 focus:outline-none focus:border-accent focus:bg-white/15 transition-colors duration-200"
+              className="flex-1 bg-white/10 border border-white/20 rounded-btn px-4 py-3 min-h-[44px] text-body-sm text-white placeholder-gray-500 focus:outline-none focus:border-accent focus:bg-white/15 transition-colors duration-200 w-full"
               aria-label="Email for newsletter"
             />
             <button
               type="submit"
-              className="flex items-center justify-center w-12 h-12 min-w-[48px] min-h-[48px] rounded-btn bg-accent hover:bg-accent-dark text-white transition-colors duration-200 shrink-0"
+              className="flex items-center justify-center gap-2 px-6 py-3 min-h-[44px] rounded-btn bg-accent hover:bg-accent-dark text-white font-semibold transition-colors duration-200 shrink-0 w-full sm:w-auto"
               aria-label="Subscribe to newsletter"
             >
-              <ArrowRight className="w-5 h-5" />
+              <span>Subscribe</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
           </form>
         )}

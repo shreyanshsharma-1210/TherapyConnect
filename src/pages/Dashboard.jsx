@@ -438,10 +438,18 @@ function NotificationsTab() {
 }
 
 function ProfileTab() {
-  const { profile, user, updateProfile } = useAuth();
+  const { profile, user, updateProfile, refreshProfile } = useAuth();
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({ full_name: '', phone: '' });
   const [saving, setSaving] = useState(false);
+  
+  // Email change state
+  const [emailEditing, setEmailEditing] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailError, setEmailError] = useState('');
 
   useEffect(() => {
     if (profile) {
@@ -461,6 +469,44 @@ function ProfileTab() {
     }
   };
 
+  const handleEmailChangeSubmit = async (e) => {
+    e.preventDefault();
+    setEmailError('');
+    if (!currentPassword) {
+      setEmailError('Password is required to verify identity.');
+      return;
+    }
+    
+    setEmailSaving(true);
+    try {
+      // 1. Verify password by re-authenticating
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword
+      });
+      
+      if (authError) throw new Error('Incorrect password.');
+
+      // 2. Update email in auth
+      const { error: updateError } = await supabase.auth.updateUser({ email: newEmail });
+      if (updateError) throw updateError;
+      
+      // 3. Update email in public.profiles (will happen via trigger, but we force it to be safe/instant)
+      await updateProfile({ email: newEmail });
+      await refreshProfile();
+      
+      alert('Email updated successfully. Please check your inbox for verification links.');
+      setPasswordModalOpen(false);
+      setEmailEditing(false);
+      setCurrentPassword('');
+      setNewEmail('');
+    } catch (err) {
+      setEmailError(err.message || 'Failed to change email.');
+    } finally {
+      setEmailSaving(false);
+    }
+  };
+
   const initials = (profile?.full_name || user?.email || 'U')
     .split(' ')
     .map((n) => n[0])
@@ -471,7 +517,7 @@ function ProfileTab() {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-border-light shadow-level-1 overflow-hidden">
       <div className="h-1.5 w-full" style={{ background: 'linear-gradient(90deg, var(--color-primary), #4D9697)' }} />
-      <div className="p-6 flex flex-col gap-5">
+      <div className="p-6 flex flex-col gap-5 relative">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-full bg-coral-100 flex items-center justify-center text-coral font-bold font-display text-2xl">
             {initials}
@@ -508,7 +554,7 @@ function ProfileTab() {
                 type="text"
                 value={formData.full_name}
                 onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                className="input-field"
+                className="w-full px-3 py-2 rounded-xl border border-border-light text-body-sm focus:outline-none focus:ring-2 focus:ring-coral/30"
               />
             ) : (
               <p className="text-body-sm text-text-dark">{profile?.full_name || '—'}</p>
@@ -522,15 +568,43 @@ function ProfileTab() {
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 placeholder="10-digit mobile"
-                className="input-field"
+                className="w-full px-3 py-2 rounded-xl border border-border-light text-body-sm focus:outline-none focus:ring-2 focus:ring-coral/30"
               />
             ) : (
               <p className="text-body-sm text-text-dark">{profile?.phone || '—'}</p>
             )}
           </div>
           <div>
-            <label className="text-label text-text-gray block mb-1.5">Email</label>
-            <p className="text-body-sm text-text-dark">{user?.email || '—'}</p>
+            <label className="text-label text-text-gray flex justify-between mb-1.5">
+              <span>Email</span>
+              {!emailEditing && !editing && (
+                <button onClick={() => setEmailEditing(true)} className="text-coral hover:underline font-semibold">Change</button>
+              )}
+            </label>
+            {emailEditing ? (
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="New email address"
+                  className="w-full px-3 py-2 rounded-xl border border-border-light text-body-sm focus:outline-none focus:ring-2 focus:ring-coral/30"
+                />
+                <button 
+                  onClick={() => {
+                    if(!newEmail || newEmail === user.email) return;
+                    setPasswordModalOpen(true);
+                  }}
+                  disabled={!newEmail || newEmail === user.email}
+                  className="bg-coral text-white text-body-sm font-semibold px-3 rounded-xl disabled:opacity-50"
+                >
+                  Save
+                </button>
+                <button onClick={() => { setEmailEditing(false); setNewEmail(''); }} className="text-body-sm text-text-gray underline px-1">Cancel</button>
+              </div>
+            ) : (
+              <p className="text-body-sm text-text-dark">{profile?.email || user?.email || '—'}</p>
+            )}
           </div>
           <div>
             <label className="text-label text-text-gray block mb-1.5">Account Type</label>
@@ -550,8 +624,43 @@ function ProfileTab() {
           </div>
         )}
 
-        {!editing && (
+        {!editing && !emailEditing && (
           <Link to="/book" className="btn-primary text-center">Book a New Session</Link>
+        )}
+        
+        {/* Secure Password Verification Modal */}
+        {passwordModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-level-2">
+              <h3 className="font-display font-bold text-xl text-text-dark mb-2">Verify Identity</h3>
+              <p className="text-body-sm text-text-gray mb-4">Please enter your current password to confirm changing your email to <span className="font-semibold text-text-dark">{newEmail}</span>.</p>
+              
+              <form onSubmit={handleEmailChangeSubmit} className="flex flex-col gap-4">
+                {emailError && (
+                  <div className="flex items-start gap-2 bg-red-50 border border-red-200 p-3 rounded-xl text-body-sm text-error">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{emailError}</span>
+                  </div>
+                )}
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Current Password"
+                  required
+                  className="w-full px-4 py-3 rounded-xl border border-border-light bg-off-white text-body focus:outline-none focus:ring-2 focus:ring-coral/30 focus:border-coral"
+                />
+                <div className="flex gap-3 mt-2">
+                  <button type="button" onClick={() => { setPasswordModalOpen(false); setCurrentPassword(''); setEmailError(''); }} className="flex-1 py-3 text-body-sm font-semibold text-text-gray border border-border-light rounded-xl hover:bg-gray-50 transition-colors">
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={emailSaving} className="flex-1 py-3 text-body-sm font-semibold bg-coral text-white rounded-xl hover:bg-[#D96B60] transition-colors disabled:opacity-70">
+                    {emailSaving ? 'Updating...' : 'Confirm'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
         )}
       </div>
     </motion.div>

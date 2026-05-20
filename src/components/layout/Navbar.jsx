@@ -156,9 +156,14 @@ function Navbar() {
                   </button>
                 </>
               ) : (
-                <Link to="/auth/login" className="flex items-center gap-1.5 px-3 py-2 rounded-btn text-body-sm font-semibold text-text-dark hover:text-accent-dark hover:bg-accent/5 transition-colors duration-200">
-                  <LogIn className="w-4 h-4" /> Sign In
-                </Link>
+                <>
+                  <Link to="/auth/login" className="flex items-center gap-1.5 px-3 py-2 rounded-btn text-body-sm font-semibold text-text-dark hover:text-accent-dark hover:bg-accent/5 transition-colors duration-200">
+                    <LogIn className="w-4 h-4" /> Sign In
+                  </Link>
+                  <Link to="/auth/signup" className="flex items-center gap-1.5 px-3.5 py-2 rounded-btn text-body-sm font-semibold text-white bg-coral hover:bg-coral-600 transition-colors duration-200">
+                    Sign Up
+                  </Link>
+                </>
               )}
               <Button className="shadow-level-1" size="sm" as={Link} to="/book">
                 Begin Healing
@@ -233,57 +238,63 @@ function Navbar() {
                   {navLinks.map((link) => (
                     <li key={link.to}>
                       <NavLink
-                        to={link.to}
-                        onClick={(e) => {
-                          handleLinkClick(e, link.to);
-                          setMenuOpen(false);
-                        }}
-                        className={({ isActive }) =>
-                          cn(
-                            'block px-4 py-3 rounded-btn text-body font-medium transition-colors duration-200',
-                            isActive
-                              ? 'text-accent-dark bg-accent/5'
-                              : 'text-text-dark hover:text-accent-dark hover:bg-accent/5'
-                          )
-                        }
-                      >
-                        {link.label}
-                      </NavLink>
-                    </li>
-                  ))}
-                </ul>
-              </nav>
+                      to={link.to}
+                      onClick={(e) => {
+                        handleLinkClick(e, link.to);
+                        setMenuOpen(false);
+                      }}
+                      className={({ isActive }) =>
+                        cn(
+                          'block px-4 py-3 rounded-btn text-body font-medium transition-colors duration-200',
+                          isActive
+                            ? 'text-accent-dark bg-accent/5'
+                            : 'text-text-dark hover:text-accent-dark hover:bg-accent/5'
+                        )
+                      }
+                    >
+                      {link.label}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </nav>
 
-              {/* Drawer CTA */}
-              <div className="px-6 py-6 border-t border-border-light flex flex-col gap-3">
-                {isAuthenticated ? (
-                  <>
-                    {isAdmin ? (
-                      <Link to="/admin" onClick={() => setMenuOpen(false)}
-                        className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-teal-50 border border-teal-200 text-body font-semibold text-teal-700">
-                        <ShieldCheck className="w-5 h-5" /> Admin Panel
-                      </Link>
-                    ) : (
-                      <Link to="/dashboard" onClick={() => setMenuOpen(false)}
-                        className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-border-light text-body font-semibold text-text-dark hover:bg-off-white transition-colors">
-                        <LayoutDashboard className="w-5 h-5" /> My Dashboard
-                      </Link>
-                    )}
-                    <button onClick={handleSignOut}
-                      className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-red-200 text-body font-semibold text-error bg-red-50">
-                      <LogOut className="w-5 h-5" /> Sign Out
-                    </button>
-                  </>
-                ) : (
+            {/* Drawer CTA */}
+            <div className="px-6 py-6 border-t border-border-light flex flex-col gap-3">
+              {isAuthenticated ? (
+                <>
+                  {isAdmin ? (
+                    <Link to="/admin" onClick={() => setMenuOpen(false)}
+                      className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-teal-50 border border-teal-200 text-body font-semibold text-teal-700">
+                      <ShieldCheck className="w-5 h-5" /> Admin Panel
+                    </Link>
+                  ) : (
+                    <Link to="/dashboard" onClick={() => setMenuOpen(false)}
+                      className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-border-light text-body font-semibold text-text-dark hover:bg-off-white transition-colors">
+                      <LayoutDashboard className="w-5 h-5" /> My Dashboard
+                    </Link>
+                  )}
+                  <button onClick={handleSignOut}
+                    className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-red-200 text-body font-semibold text-error bg-red-50">
+                    <LogOut className="w-5 h-5" /> Sign Out
+                  </button>
+                </>
+              ) : (
+                <>
                   <Link to="/auth/login" onClick={() => setMenuOpen(false)}
                     className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-border-light text-body font-semibold text-text-dark hover:bg-off-white transition-colors">
                     <LogIn className="w-5 h-5" /> Sign In
                   </Link>
-                )}
-                <Button fullWidth className="shadow-level-1" as={Link} to="/book" onClick={() => setMenuOpen(false)}>
-                  Begin Your Healing
-                </Button>
-              </div>
+                  <Link to="/auth/signup" onClick={() => setMenuOpen(false)}
+                    className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-coral text-white text-body font-semibold hover:bg-coral-600 transition-colors">
+                    Sign Up
+                  </Link>
+                </>
+              )}
+              <Button fullWidth className="shadow-level-1" as={Link} to="/book" onClick={() => setMenuOpen(false)}>
+                Begin Your Healing
+              </Button>
+            </div>
             </motion.aside>
           </>
         )}

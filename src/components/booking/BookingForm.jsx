@@ -162,21 +162,21 @@ function BookingForm() {
 
       {/* Session mode */}
       <FieldWrapper label="Preferred Mode" required error={errors.mode?.message}>
-        <div className="flex gap-2" role="group" aria-label="Select session mode">
+        <div className="flex flex-col sm:flex-row gap-2" role="group" aria-label="Select session mode">
           {modes.map(({ value, label, Icon }) => (
             <button
               key={value}
               type="button"
               onClick={() => setValue('mode', value, { shouldValidate: true })}
               className={cn(
-                'flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl border text-label font-semibold transition-all duration-200',
+                'flex-1 flex flex-row sm:flex-col items-center justify-center gap-2 py-3.5 rounded-xl border text-body-sm sm:text-label font-semibold transition-all duration-200',
                 watchedMode === value
                   ? 'bg-coral text-white border-coral shadow-coral'
                   : 'bg-white text-text-gray border-border-light hover:border-coral hover:text-coral'
               )}
               aria-pressed={watchedMode === value}
             >
-              <Icon className="w-4 h-4" aria-hidden="true" />
+              <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
               {label}
             </button>
           ))}

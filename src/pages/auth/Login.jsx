@@ -5,11 +5,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth }    from '@/context/AuthContext';
+import { supabase }   from '@/lib/supabase';
 import AuthLayout    from '@/components/auth/AuthLayout';
 import AuthField     from '@/components/auth/AuthField';
 
 const schema = z.object({
-  email:    z.string().email('Enter a valid email address'),
+  identifier: z.string().min(1, 'Enter your email or mobile number'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
@@ -27,7 +28,23 @@ export default function Login() {
   const onSubmit = async (data) => {
     setServerError('');
     try {
-      const result = await signIn(data);
+      let emailToUse = data.identifier;
+      const isMobile = /^[6-9]\d{9}$/.test(data.identifier);
+
+      if (isMobile) {
+        const { data: foundEmail, error: rpcError } = await supabase.rpc('get_email_by_phone', {
+          p_phone: data.identifier
+        });
+        
+        if (rpcError) throw new Error('Failed to lookup account by mobile number.');
+        if (!foundEmail) throw new Error('No account found with this mobile number.');
+        
+        emailToUse = foundEmail;
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.identifier)) {
+        throw new Error('Please enter a valid email or 10-digit mobile number.');
+      }
+
+      const result = await signIn({ email: emailToUse, password: data.password });
       const role   = result?.profile?.role;
       console.log('[Login] Sign-in result:', { result, role, from });
       if (from && !from.startsWith('/auth')) {
@@ -39,7 +56,7 @@ export default function Login() {
       }
     } catch (err) {
       console.error('[Login] Sign-in error:', err);
-      setServerError(err.message || 'Invalid email or password.');
+      setServerError(err.message || 'Invalid credentials.');
     }
   };
 
@@ -57,13 +74,13 @@ export default function Login() {
         )}
 
         <AuthField
-          label="Email address"
-          type="email"
+          label="Email or Mobile Number"
+          type="text"
           icon={Mail}
-          placeholder="you@example.com"
-          autoComplete="email"
-          error={errors.email?.message}
-          {...register('email')}
+          placeholder="you@example.com or 10-digit number"
+          autoComplete="username"
+          error={errors.identifier?.message}
+          {...register('identifier')}
         />
 
         <AuthField
