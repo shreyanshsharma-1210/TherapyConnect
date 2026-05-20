@@ -872,7 +872,7 @@ function TestimonialTab({ user, profile }) {
 }
 
 function Dashboard() {
-  const { isAuthenticated, user }                 = useAuth();
+  const { isAuthenticated, user, profile }        = useAuth();
   const { bookings: dbBookings, cancel: dbCancel } = useBookings();
   const { bookings: localBookings, cancelBooking } = useBooking();
 
