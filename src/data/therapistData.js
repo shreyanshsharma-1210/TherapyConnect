@@ -1,0 +1,41 @@
+export const therapist = {
+  id: 'charushri-suhaney',
+  name: 'Charushri Suhaney',
+  title: 'Counselling Psychologist & Holistic Wellness Guide',
+  credentials: [
+    'M.A. Counselling Psychology',
+    'NLP Practitioner',
+    'Pranic Healer',
+    'Communication Coach'
+  ],
+  tagline: 'A safe emotional space for healing, self-awareness, and human connection.',
+  bio: `I am a compassionate counselling psychologist dedicated to guiding individuals through their journeys of emotional healing and self-discovery. My approach is deeply human, reflective, and holistic, focusing on the intricate connection between mind, body, and soul.`,
+  bioExtended: `With a background in Counselling Psychology and specialized training as an NLP Practitioner and Pranic Healer, I integrate traditional therapeutic techniques with holistic wellness practices. My work is centered on addressing loneliness, fostering emotional resilience, and creating safe spaces for authentic communication and interconnectedness.`,
+  experience: '8+ years',
+  sessionsCompleted: 1500,
+  clientSatisfaction: 99,
+  specializations: [
+    'Loneliness & Emotional Healing',
+    'Self-Awareness & Growth',
+    'Psychosomatic Wellness',
+    'Interconnectedness & Belonging',
+    'Communication & Expression',
+    'Mindfulness & Balance',
+  ],
+  languages: ['English', 'Hindi'],
+  location: 'Online & In-person in Bengaluru',
+  availability: 'Available for safe conversations: Mon – Sat',
+  sessionFormats: ['Safe Video Call', 'Deep In-Person', 'Compassionate Phone Call'],
+  avatar: null,
+  heroImage: null,
+  contact: {
+    phone: '+91 98765 43210',
+    email: 'connect@charushri.com',
+    address: 'Private Studio, Bengaluru, India',
+  },
+  social: {
+    instagram: 'https://instagram.com/charushri_wellness',
+    linkedin: 'https://linkedin.com/in/charushri-suhaney-417a6017',
+    twitter: 'https://twitter.com/charushri_s',
+  },
+};

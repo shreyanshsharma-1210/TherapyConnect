@@ -1,0 +1,63 @@
+export const pricingPlans = [
+  {
+    id: 'single',
+    name: 'Gentle Start',
+    price: 1500,
+    currency: '₹',
+    duration: '50 min conversation',
+    description: 'A single safe space to explore your thoughts and begin your healing journey.',
+    features: [
+      '50-minute reflective session',
+      'Safe & confidential space',
+      'Gentle post-session notes',
+      'Reflective resources shared',
+    ],
+    cta: 'Begin Your Journey',
+    highlighted: false,
+    badge: null,
+  },
+  {
+    id: 'monthly',
+    name: 'Deep Healing',
+    price: 5000,
+    currency: '₹',
+    duration: '4 conversations / month',
+    description: 'Our most cherished path for consistent emotional growth and self-awareness.',
+    features: [
+      '4 × 50-minute deep sessions',
+      'Priority for your safe space',
+      'Gentle check-ins via WhatsApp',
+      'Personalized reflection journal',
+      'Monthly healing review',
+      'Compassionate flexibility',
+    ],
+    cta: 'Commit to Healing',
+    highlighted: true,
+    badge: 'Most Cherished',
+  },
+  {
+    id: 'intensive',
+    name: 'Holistic Transformation',
+    price: 9000,
+    currency: '₹',
+    duration: '8 conversations / month',
+    description: 'For those ready for a profound shift in self-awareness and interconnectedness.',
+    features: [
+      '8 × 50-minute holistic sessions',
+      'Unrestricted emotional support',
+      'Deep self-awareness exercises',
+      'Guided meditations for calm',
+      'Bi-weekly growth insights',
+      'Infinite flexibility for you',
+    ],
+    cta: 'Transform Your Soul',
+    highlighted: false,
+    badge: 'Deep Growth',
+  },
+];
+
+export const addOns = [
+  { id: 'couples', name: 'Connection Session', price: 2500, duration: '60 min' },
+  { id: 'extended', name: 'Extended Space', price: 2000, duration: '80 min' },
+  { id: 'holistic', name: 'Holistic Healing Session', price: 3500, duration: '90 min' },
+];
