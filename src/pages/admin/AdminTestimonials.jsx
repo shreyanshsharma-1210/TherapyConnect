@@ -6,6 +6,7 @@ import {
   PageHeader, AdminCard, AdminBtn, ConfirmDialog, EmptyState,
 } from '@/components/admin/AdminComponents';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 
 const FILTER_OPTIONS = ['all', 'approved', 'pending'];
 
@@ -33,7 +34,38 @@ export default function AdminTestimonials() {
     finally { setLoading(false); }
   }, [toast]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+
+    const channel = supabase
+      .channel('admin_testimonials')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'testimonials'
+      }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setTestimonials(prev => {
+            if (prev.some(t => t.id === payload.new.id)) return prev;
+            return [payload.new, ...prev];
+          });
+        } else if (payload.eventType === 'UPDATE') {
+          setTestimonials(prev => {
+            if (payload.new.deleted_at) {
+              return prev.filter(t => t.id !== payload.new.id);
+            }
+            return prev.map(t => t.id === payload.new.id ? payload.new : t);
+          });
+        } else if (payload.eventType === 'DELETE') {
+          setTestimonials(prev => prev.filter(t => t.id !== payload.old.id));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [load]);
 
   const filtered = testimonials.filter(t => {
     if (filter === 'approved') return t.is_approved;

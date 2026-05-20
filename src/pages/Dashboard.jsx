@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, Clock, Video, MapPin, PhoneCall,
@@ -687,7 +687,12 @@ function TestimonialTab({ user, profile }) {
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+
     supabase
       .from('testimonials')
       .select('id, content, rating, service_title, is_approved, created_at')
@@ -695,14 +700,45 @@ function TestimonialTab({ user, profile }) {
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
-      .then(({ data }) => { if (data) setExisting(data); })
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) console.error('[TestimonialTab] Fetch error:', error);
+        if (data) setExisting(data);
+      })
+      .catch((err) => console.error('[TestimonialTab] Unexpected error:', err))
       .finally(() => setLoading(false));
+
+    // Realtime subscription for this user's testimonials
+    const channel = supabase
+      .channel(`user-testimonial-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'testimonials',
+        filter: `user_id=eq.${user.id}`,
+      }, (payload) => {
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          if (payload.new.deleted_at === null) {
+            setExisting(payload.new);
+          } else {
+            setExisting(null);
+          }
+        } else if (payload.eventType === 'DELETE') {
+          setExisting(null);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user?.id]);
+
+  const isContentValid = form.content.trim().length >= 10 && form.content.trim().length <= 600;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.content.trim()) return;
+    if (!isContentValid) return;
     setSubmitting(true);
     try {
       const { data, error } = await supabase
@@ -710,7 +746,7 @@ function TestimonialTab({ user, profile }) {
         .insert({
           user_id:       user.id,
           author_name:   profile?.full_name || user.email,
-          author_role:   profile?.phone ? '' : '',
+          author_role:   profile?.phone ? 'Client' : 'Client',
           content:       form.content.trim(),
           rating:        form.rating,
           service_title: form.service_title.trim() || null,
@@ -800,6 +836,18 @@ function TestimonialTab({ user, profile }) {
             required
             className="w-full px-4 py-3 rounded-xl border border-border-light bg-off-white text-body text-text-dark focus:outline-none focus:ring-2 focus:ring-coral/30 focus:border-coral resize-none"
           />
+          <div className="flex justify-between items-center mt-1">
+            <span className="text-[11px] text-text-gray">
+              {form.content.trim().length < 10 
+                ? 'Please write at least 10 characters.' 
+                : form.content.trim().length > 600 
+                ? 'Maximum 600 characters.' 
+                : 'Looks good!'}
+            </span>
+            <span className={cn('text-[11px] font-mono', form.content.trim().length > 600 || (form.content.trim().length > 0 && form.content.trim().length < 10) ? 'text-error font-bold' : 'text-text-gray')}>
+              {form.content.trim().length}/600
+            </span>
+          </div>
         </div>
         <div>
           <label className="text-label text-text-dark font-semibold block mb-1.5">Service (optional)</label>
@@ -813,7 +861,7 @@ function TestimonialTab({ user, profile }) {
         </div>
         <button
           type="submit"
-          disabled={submitting || !form.content.trim()}
+          disabled={submitting || !isContentValid}
           className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? 'Submitting…' : 'Submit Testimonial'}
@@ -829,7 +877,9 @@ function Dashboard() {
   const { bookings: localBookings, cancelBooking } = useBooking();
 
   const navigate = useNavigate();
-  const [activeTab,     setActiveTab]     = useState('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
+  const setActiveTab = (tab) => setSearchParams({ tab });
   const [historyFilter, setHistoryFilter] = useState('all');
 
   const [cancelConfirm, setCancelConfirm] = useState(null); // booking id to cancel

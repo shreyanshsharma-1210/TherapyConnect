@@ -2,6 +2,21 @@ import { useState, useEffect } from 'react';
 import { testimonialService } from '@/services/testimonialService';
 import { realtimeManager } from '@/lib/realtimeManager';
 
+function mapTestimonial(row) {
+  return {
+    id:           row.id,
+    name:         row.author_name,
+    role:         row.author_role,
+    avatar:       row.author_avatar,
+    quote:        row.content,
+    content:      row.content,
+    rating:       row.rating,
+    featured:     row.is_featured,
+    verified:     row.is_approved,
+    serviceTitle: row.service_title,
+  };
+}
+
 export function useTestimonials({ limit = 20, featuredOnly = false } = {}) {
   const [testimonials, setTestimonials] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,19 +45,24 @@ export function useTestimonials({ limit = 20, featuredOnly = false } = {}) {
       filter: 'is_approved=eq.true',
       onInsert: (newTestimonial) => {
         if (featuredOnly && !newTestimonial.is_featured) return;
-        setTestimonials((prev) => [newTestimonial, ...prev].slice(0, limit));
+        const mapped = mapTestimonial(newTestimonial);
+        setTestimonials((prev) => [mapped, ...prev].slice(0, limit));
       },
       onUpdate: (updatedTestimonial) => {
+        const mapped = mapTestimonial(updatedTestimonial);
         // If testimonial becomes unapproved, remove it
-        if (!updatedTestimonial.is_approved) {
+        if (!updatedTestimonial.is_approved || (featuredOnly && !updatedTestimonial.is_featured)) {
           setTestimonials((prev) => prev.filter((t) => t.id !== updatedTestimonial.id));
           return;
         }
-        if (featuredOnly && !updatedTestimonial.is_featured) {
-          setTestimonials((prev) => prev.filter((t) => t.id !== updatedTestimonial.id));
-          return;
-        }
-        setTestimonials((prev) => prev.map((t) => t.id === updatedTestimonial.id ? updatedTestimonial : t));
+        setTestimonials((prev) => {
+          const exists = prev.some((t) => t.id === updatedTestimonial.id);
+          if (exists) {
+            return prev.map((t) => t.id === updatedTestimonial.id ? mapped : t);
+          } else {
+            return [mapped, ...prev].slice(0, limit);
+          }
+        });
       },
       onDelete: (deletedTestimonial) => {
         setTestimonials((prev) => prev.filter((t) => t.id !== deletedTestimonial.id));
@@ -56,3 +76,4 @@ export function useTestimonials({ limit = 20, featuredOnly = false } = {}) {
 
   return { testimonials, loading, error };
 }
+
