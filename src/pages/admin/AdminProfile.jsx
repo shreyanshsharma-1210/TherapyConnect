@@ -3,6 +3,7 @@ import { Upload, X, Plus, ExternalLink, AlertCircle } from 'lucide-react';
 import { adminRepository } from '@/repositories/adminRepository';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { friendlyError } from '@/lib/apiError';
 import { useToast } from '@/context/ToastContext';
 import { motion } from 'framer-motion';
 import { useInvalidation, keys } from '@/lib/invalidationManager';
@@ -137,7 +138,7 @@ export default function AdminProfile() {
       setCurrentPassword('');
       setNewAuthEmail('');
     } catch (err) {
-      setEmailError(err.message || 'Failed to change login email.');
+      setEmailError(friendlyError(err) || 'Failed to change login email.');
     } finally {
       setEmailSaving(false);
     }

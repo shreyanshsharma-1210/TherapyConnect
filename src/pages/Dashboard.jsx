@@ -13,6 +13,7 @@ import { useBooking }  from '@/hooks/useBooking';
 import { useBookings } from '@/hooks/useBookings';
 import { useAuth }     from '@/context/AuthContext';
 import { useNotifications } from '@/hooks/useNotifications';
+import { friendlyError } from '@/lib/apiError';
 import { paymentRepository } from '@/repositories/paymentRepository';
 import { therapist } from '@/data/therapistData';
 import { services }  from '@/data/servicesData';
@@ -501,7 +502,7 @@ function ProfileTab() {
       setCurrentPassword('');
       setNewEmail('');
     } catch (err) {
-      setEmailError(err.message || 'Failed to change email.');
+      setEmailError(friendlyError(err) || 'Failed to change email.');
     } finally {
       setEmailSaving(false);
     }

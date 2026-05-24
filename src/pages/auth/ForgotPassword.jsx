@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Mail, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { friendlyError } from '@/lib/apiError';
 import AuthLayout from '@/components/auth/AuthLayout';
 import AuthField from '@/components/auth/AuthField';
 
@@ -31,7 +32,7 @@ export default function ForgotPassword() {
       setSuccess(true);
     } catch (err) {
       console.error('[ForgotPassword] Error:', err);
-      setServerError(err.message || 'Failed to send reset link. Please try again.');
+      setServerError(friendlyError(err) || 'Failed to send reset link. Please try again.');
     }
   };
 
