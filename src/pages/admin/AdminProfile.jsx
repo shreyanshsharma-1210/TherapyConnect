@@ -1,10 +1,12 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Upload, X, Plus, ExternalLink, AlertCircle } from 'lucide-react';
 import { adminRepository } from '@/repositories/adminRepository';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { motion } from 'framer-motion';
+import { useInvalidation, keys } from '@/lib/invalidationManager';
+import { useRealtimeSubscription } from '@/lib/realtime/realtimeManager';
 import {
   PageHeader, AdminCard, AdminBtn, AdminInput, AdminTextarea,
 } from '@/components/admin/AdminComponents';
@@ -61,12 +63,22 @@ export default function AdminProfile() {
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailError, setEmailError] = useState('');
 
-  useEffect(() => {
+  const load = useCallback(() => {
     adminRepository.getProfile().then(p => {
       setProfile(p);
       setForm(p ? { ...p } : null);
     }).finally(() => setLoading(false));
   }, []);
+
+  // Centralized realtime subscription for therapist profile updates
+  useRealtimeSubscription('therapist_profile');
+
+  // Trigger invalidation state reload
+  useInvalidation(keys.THERAPIST_PROFILE, load);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 

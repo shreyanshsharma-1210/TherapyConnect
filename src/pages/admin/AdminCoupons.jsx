@@ -12,6 +12,8 @@ import {
 } from '@/components/admin/AdminComponents';
 import { formatCurrency } from '@/utils/formatting';
 import { useToast } from '@/context/ToastContext';
+import { useInvalidation, keys } from '@/lib/invalidationManager';
+import { useRealtimeSubscription } from '@/lib/realtime/realtimeManager';
 
 // Countdown sub-component for active reservations
 function ReservationCountdown({ expiresAt }) {
@@ -79,24 +81,14 @@ export default function AdminCoupons() {
     }
   };
 
+  // Centralized realtime subscription for coupons
+  useRealtimeSubscription('coupons');
+
+  // Trigger state invalidation and reload coupon lists + metrics
+  useInvalidation(keys.COUPONS, loadData);
+
   useEffect(() => {
     loadData();
-
-    // Set up Realtime Subscription to instantly sync list & metrics
-    const channel = supabase
-      .channel('schema-db-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'coupons' },
-        (payload) => {
-          loadData();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
   // Helper to auto-generate code (collision safe)

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { blogService }         from '@/services/blogService';
 import { realtimeManager }     from '@/lib/realtimeManager';
+import { useInvalidation, keys } from '@/lib/invalidationManager';
 
 const mapRaw = (row) => ({
   id:          row.id,
@@ -24,9 +25,24 @@ export function useBlogPosts({ limit = 20, category = null, featuredOnly = false
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
 
-  useEffect(() => {
+  const refetch = useCallback(() => {
     setLoading(true);
+    const fetch = featuredOnly
+      ? blogService.getFeatured()
+      : blogService.getPosts({ limit, category });
+
+    fetch
+      .then((data) => { setPosts(data); setError(null); })
+      .catch((err) => { setError(err.message); setPosts([]); })
+      .finally(() => setLoading(false));
+  }, [limit, category, featuredOnly]);
+
+  // Reconnect & cross-tab stale-state recovery
+  useInvalidation(keys.BLOGS, refetch);
+
+  useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     const fetch = featuredOnly
       ? blogService.getFeatured()
       : blogService.getPosts({ limit, category });

@@ -33,7 +33,8 @@ function mapTestimonial(row) {
     content:      row.content,
     rating:       row.rating,
     featured:     row.is_featured,
-    verified:     row.is_approved,
+    verified:     row.is_verified,
+    sourceType:   row.source_type,
     serviceTitle: row.service_title,
   };
 }

@@ -1,14 +1,26 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp, IndianRupee, Calendar, Users,
   Download, BarChart3, Clock, CheckCircle2,
+  CalendarDays,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { PageHeader, StatCard } from '@/components/admin/AdminComponents';
+import { PageHeader, StatCard, AdminSelect, AdminBtn, AdminInput } from '@/components/admin/AdminComponents';
 import { cn } from '@/lib/utils';
+import { formatCurrency, formatShortDate } from '@/utils/formatting';
+import { useToast } from '@/context/ToastContext';
+import { useInvalidation, keys } from '@/lib/invalidationManager';
+import { useRealtimeSubscription } from '@/lib/realtime/realtimeManager';
 
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const FILTER_OPTIONS = [
+  { value: 'today', label: 'Today' },
+  { value: '7',     label: '7 Days' },
+  { value: '30',    label: '30 Days' },
+  { value: '90',    label: '90 Days' },
+  { value: 'year',  label: 'This Year' },
+  { value: 'custom',label: 'Custom Range' },
+];
 
 function MiniBar({ value, max, color = 'bg-teal-500' }) {
   const pct = max ? Math.round((value / max) * 100) : 0;
@@ -17,95 +29,141 @@ function MiniBar({ value, max, color = 'bg-teal-500' }) {
       <div className="flex-1 h-2 bg-cream-100 rounded-full overflow-hidden">
         <div className={cn('h-full rounded-full transition-all duration-500', color)} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-label text-text-gray w-6 text-right">{value}</span>
+      <span className="text-label text-text-gray w-8 text-right font-mono">{value}</span>
     </div>
   );
 }
 
 export default function AdminReporting() {
-  const [bookings, setBookings]   = useState([]);
-  const [payments, setPayments]   = useState([]);
-  const [loading,  setLoading]    = useState(true);
-  const [range,    setRange]      = useState('30');
+  const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState('30');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+  
+  const [stats, setStats] = useState({
+    grossRevenue: 0, netRevenue: 0, totalRefunds: 0,
+    totalBookings: 0, confirmed: 0, completed: 0, cancelled: 0, conversionRate: 0,
+    byService: {}, byDay: {}, revenueByDate: {}
+  });
+  const [recentBookings, setRecentBookings] = useState([]);
+  const [exporting, setExporting] = useState(false);
+  const { toast } = useToast();
+
+  const getDateRange = useCallback(() => {
+    const end = new Date();
+    const start = new Date();
+    if (range === 'today') {
+      start.setHours(0, 0, 0, 0);
+    } else if (range === 'year') {
+      start.setMonth(0, 1);
+      start.setHours(0, 0, 0, 0);
+    } else if (range === 'custom') {
+      return { 
+        start: customStart ? new Date(customStart) : start, 
+        end: customEnd ? new Date(customEnd) : end 
+      };
+    } else {
+      start.setDate(start.getDate() - parseInt(range));
+    }
+    return { start, end };
+  }, [range, customStart, customEnd]);
+
+  const loadAnalytics = useCallback(async () => {
+    if (range === 'custom' && (!customStart || !customEnd)) return;
+    setLoading(true);
+    
+    try {
+      const { start, end } = getDateRange();
+      
+      const { data: summary, error: rpcErr } = await supabase.rpc('get_analytics_summary', {
+        start_date: start.toISOString(),
+        end_date: end.toISOString()
+      });
+      if (rpcErr) throw rpcErr;
+
+      const { data: bookings, error: bErr } = await supabase
+        .from('bookings')
+        .select('*')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (bErr) throw bErr;
+
+      setStats({
+        grossRevenue: summary.grossRevenue || 0,
+        netRevenue: summary.netRevenue || 0,
+        totalRefunds: summary.totalRefunds || 0,
+        totalBookings: summary.totalBookings || 0,
+        confirmed: summary.confirmed || 0,
+        completed: summary.completed || 0,
+        cancelled: summary.cancelled || 0,
+        conversionRate: summary.conversionRate || 0,
+        byService: summary.byService || {},
+        byDay: summary.byDay || {},
+        revenueByDate: summary.revenueByDate || {}
+      });
+      setRecentBookings(bookings || []);
+
+    } catch (err) {
+      console.error('[Analytics] Load error:', err);
+      toast({ type: 'error', title: 'Failed to load analytics' });
+    } finally {
+      setLoading(false);
+    }
+  }, [getDateRange, range, customStart, customEnd, toast]);
+
+  // Centralized realtime subscriptions — no more scattered channels
+  useRealtimeSubscription('bookings');
+  useRealtimeSubscription('payments');
+
+  // Reload analytics when booking or payment data changes
+  useInvalidation(keys.BOOKINGS, loadAnalytics);
+  useInvalidation(keys.PAYMENTS, loadAnalytics);
 
   useEffect(() => {
-    const since = new Date();
-    since.setDate(since.getDate() - parseInt(range));
+    loadAnalytics();
+  }, [loadAnalytics]);
 
-    Promise.all([
-      supabase.from('bookings').select('*').gte('created_at', since.toISOString()),
-      supabase.from('payments').select('*').eq('status', 'paid').gte('created_at', since.toISOString()),
-    ]).then(([bRes, pRes]) => {
-      setBookings(bRes.data || []);
-      setPayments(pRes.data || []);
-    }).finally(() => setLoading(false));
-  }, [range]);
-
-  // Calculate refund amount for a cancelled booking based on cancellation policy
-  const calcRefund = (booking) => {
-    const amount = booking.amount_inr || 0;
-    if (booking.status !== 'cancelled' || amount === 0) return 0;
-    const cancelledAt = booking.cancelled_at ? new Date(booking.cancelled_at) : new Date();
-    const sessionAt   = new Date(`${booking.session_date}T${booking.session_time || '00:00'}`);
-    const hoursToSession = (sessionAt - cancelledAt) / (1000 * 60 * 60);
-    if (hoursToSession > 24) return amount;       // Full refund
-    if (hoursToSession > 0)  return amount * 0.5; // 50% refund within 24h
-    return 0; // No refund after session time
-  };
-
-  const stats = useMemo(() => {
-    const grossRevenue    = payments.reduce((s, p) => s + (p.amount_inr || 0), 0);
-    const confirmed       = bookings.filter((b) => ['confirmed', 'completed', 'upcoming'].includes(b.status)).length;
-    const cancelled       = bookings.filter((b) => b.status === 'cancelled').length;
-    const conversionRate  = bookings.length ? Math.round((confirmed / bookings.length) * 100) : 0;
-
-    // Refunds: sum up refund amounts for cancelled bookings
-    const totalRefunds = bookings
-      .filter((b) => b.status === 'cancelled')
-      .reduce((s, b) => s + calcRefund(b), 0);
-
-    const netRevenue = grossRevenue - totalRefunds;
-
-    // Group revenue by month (net of refunds)
-    const revenueByMonth = {};
-    payments.forEach((p) => {
-      const m = MONTHS[new Date(p.created_at).getMonth()];
-      revenueByMonth[m] = (revenueByMonth[m] || 0) + (p.amount_inr || 0);
-    });
-
-    // Group bookings by service (only active)
-    const byService = {};
-    bookings.forEach((b) => {
-      const s = b.service_title || 'Other';
-      byService[s] = (byService[s] || 0) + 1;
-    });
-
-    // Group bookings by day of week
-    const byDay = { Sun:0, Mon:0, Tue:0, Wed:0, Thu:0, Fri:0, Sat:0 };
-    bookings.forEach((b) => {
-      const d = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(b.session_date).getDay()];
-      if (d) byDay[d]++;
-    });
-
-    return { grossRevenue, netRevenue, totalRefunds, confirmed, cancelled, conversionRate, revenueByMonth, byService, byDay };
-  }, [bookings, payments]);
-
-  const exportCSV = () => {
-    const rows = [
-      ['Booking Ref','Service','Date','Time','Mode','Status','Amount'],
-      ...bookings.map((b) => [
-        b.booking_ref, b.service_title, b.session_date, b.session_time,
-        b.session_mode, b.status, b.amount_inr,
-      ]),
-    ];
-    const csv  = rows.map((r) => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `therapyconnect-report-${range}d.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const exportCSV = async () => {
+    setExporting(true);
+    try {
+      const { start, end } = getDateRange();
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*, payments(*)')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+        .order('created_at', { ascending: false });
+        
+      if (error) throw error;
+      
+      const rows = [
+        ['Booking Ref','Client Name','Client Email','Service','Date','Time','Mode','Status','Amount INR','Payment Status','Created At']
+      ];
+      data.forEach(b => {
+        const pStatus = b.payments?.[0]?.status || 'pending';
+        rows.push([
+          b.booking_ref, b.client_name, b.client_email, b.service_title, b.session_date, b.session_time,
+          b.session_mode, b.status, b.amount_inr, pStatus, b.created_at
+        ]);
+      });
+      
+      const csv  = rows.map(r => r.join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `therapyconnect-export-${range}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ type: 'success', title: 'Export completed successfully' });
+    } catch (err) {
+      console.error('[Export] Error:', err);
+      toast({ type: 'error', title: 'Export failed' });
+    } finally {
+      setExporting(false);
+    }
   };
 
   const maxService = Math.max(...Object.values(stats.byService), 1);
@@ -113,60 +171,84 @@ export default function AdminReporting() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <PageHeader title="Reporting & Insights" subtitle="Business performance overview" />
-        <div className="flex items-center gap-3">
-          <div className="flex rounded-xl border border-border-light overflow-hidden">
-            {[['7','7 days'],['30','30 days'],['90','90 days']].map(([v, l]) => (
+      {/* Header & Filters */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <PageHeader title="Revenue & Booking Analytics" subtitle="Comprehensive platform insights" />
+        
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex bg-white rounded-xl border border-border-light overflow-hidden shadow-sm">
+            {FILTER_OPTIONS.filter(f => f.value !== 'custom').map(f => (
               <button
-                key={v}
-                onClick={() => setRange(v)}
+                key={f.value}
+                onClick={() => setRange(f.value)}
                 className={cn(
-                  'px-4 py-2 text-body-sm font-semibold transition-colors',
-                  range === v ? 'bg-teal-600 text-white' : 'bg-white text-text-gray hover:bg-cream-50'
+                  'px-3.5 py-2 text-label font-semibold transition-colors border-r border-border-light last:border-0',
+                  range === f.value ? 'bg-teal-600 text-white' : 'text-text-gray hover:bg-cream-50'
                 )}
               >
-                {l}
+                {f.label}
               </button>
             ))}
+            <button
+              onClick={() => setRange('custom')}
+              className={cn(
+                'px-3.5 py-2 text-label font-semibold transition-colors',
+                range === 'custom' ? 'bg-teal-600 text-white' : 'text-text-gray hover:bg-cream-50'
+              )}
+            >
+              Custom
+            </button>
           </div>
-          <button
+          
+          <AdminBtn
             onClick={exportCSV}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-border-light text-text-dark text-body-sm font-semibold rounded-xl hover:border-teal-400 transition-colors"
+            variant="secondary"
+            loading={exporting}
+            className="hidden sm:flex"
           >
             <Download className="w-4 h-4" /> Export CSV
-          </button>
+          </AdminBtn>
         </div>
       </div>
+
+      {range === 'custom' && (
+        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="flex gap-3 items-end">
+          <AdminInput type="date" label="Start Date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="w-40" />
+          <AdminInput type="date" label="End Date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="w-40" />
+          <AdminBtn onClick={loadAnalytics} disabled={!customStart || !customEnd}>Apply Filter</AdminBtn>
+        </motion.div>
+      )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Net Revenue"
-          value={`₹${Math.max(0, stats.netRevenue).toLocaleString('en-IN')}`}
+          label="Net Revenue"
+          value={formatCurrency(stats.netRevenue)}
           icon={IndianRupee}
           color="teal"
           loading={loading}
         />
         <StatCard
-          title="Gross Revenue"
-          value={`₹${stats.grossRevenue.toLocaleString('en-IN')}`}
+          label="Gross Revenue"
+          value={formatCurrency(stats.grossRevenue)}
           icon={TrendingUp}
           color="green"
           loading={loading}
         />
         <StatCard
-          title="Refunds"
-          value={`₹${stats.totalRefunds.toLocaleString('en-IN')}`}
-          icon={IndianRupee}
+          label="Total Bookings"
+          value={stats.totalBookings.toLocaleString()}
+          icon={CalendarDays}
           color="coral"
+          trend={`${stats.conversionRate}% conversion rate`}
           loading={loading}
         />
         <StatCard
-          title="Cancelled"
-          value={stats.cancelled}
+          label="Completed Sessions"
+          value={stats.completed.toLocaleString()}
           icon={CheckCircle2}
-          color="coral"
+          color="amber"
+          trend={`${stats.cancelled} cancelled`}
           loading={loading}
         />
       </div>
@@ -177,23 +259,23 @@ export default function AdminReporting() {
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl border border-border-light shadow-level-1 p-6"
+          className="bg-white rounded-2xl border border-border-light shadow-level-1 p-6 flex flex-col"
         >
           <div className="flex items-center gap-2 mb-5">
             <BarChart3 className="w-5 h-5 text-teal-600" />
             <h3 className="font-body font-bold text-text-dark">Bookings by Service</h3>
           </div>
           {loading ? (
-            <div className="flex flex-col gap-3">{[1,2,3].map(i => <div key={i} className="h-5 bg-cream-50 rounded animate-pulse" />)}</div>
+            <div className="flex flex-col gap-4 flex-1 justify-center">{[1,2,3].map(i => <div key={i} className="h-4 bg-cream-50 rounded animate-pulse" />)}</div>
           ) : Object.keys(stats.byService).length === 0 ? (
-            <p className="text-body-sm text-text-gray text-center py-6">No data yet</p>
+            <div className="flex-1 flex items-center justify-center text-body-sm text-text-gray">No data available in this period</div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               {Object.entries(stats.byService)
                 .sort((a, b) => b[1] - a[1])
                 .map(([service, count]) => (
                 <div key={service}>
-                  <p className="text-body-sm text-text-dark font-semibold mb-1 truncate">{service}</p>
+                  <p className="text-body-sm text-text-dark font-semibold mb-1.5 truncate">{service}</p>
                   <MiniBar value={count} max={maxService} color="bg-teal-500" />
                 </div>
               ))}
@@ -206,22 +288,27 @@ export default function AdminReporting() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-white rounded-2xl border border-border-light shadow-level-1 p-6"
+          className="bg-white rounded-2xl border border-border-light shadow-level-1 p-6 flex flex-col"
         >
           <div className="flex items-center gap-2 mb-5">
             <Clock className="w-5 h-5 text-coral" />
-            <h3 className="font-body font-bold text-text-dark">Busiest Days</h3>
+            <h3 className="font-body font-bold text-text-dark">Busiest Weekdays</h3>
           </div>
           {loading ? (
-            <div className="flex flex-col gap-3">{[1,2,3].map(i => <div key={i} className="h-5 bg-cream-50 rounded animate-pulse" />)}</div>
+            <div className="flex flex-col gap-4 flex-1 justify-center">{[1,2,3].map(i => <div key={i} className="h-4 bg-cream-50 rounded animate-pulse" />)}</div>
+          ) : Object.keys(stats.byDay).length === 0 ? (
+             <div className="flex-1 flex items-center justify-center text-body-sm text-text-gray">No data available in this period</div>
           ) : (
-            <div className="flex flex-col gap-3">
-              {Object.entries(stats.byDay).map(([day, count]) => (
-                <div key={day}>
-                  <p className="text-body-sm text-text-dark font-semibold mb-1">{day}</p>
-                  <MiniBar value={count} max={maxDay} color="bg-coral" />
-                </div>
-              ))}
+            <div className="flex flex-col gap-4">
+              {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day => {
+                const count = stats.byDay[day] || 0;
+                return (
+                  <div key={day}>
+                    <p className="text-body-sm text-text-dark font-semibold mb-1.5">{day}</p>
+                    <MiniBar value={count} max={maxDay} color="bg-coral" />
+                  </div>
+                );
+              })}
             </div>
           )}
         </motion.div>
@@ -234,53 +321,50 @@ export default function AdminReporting() {
         transition={{ delay: 0.2 }}
         className="bg-white rounded-2xl border border-border-light shadow-level-1 overflow-hidden"
       >
-        <div className="px-6 py-4 border-b border-border-light flex items-center gap-2">
-          <Users className="w-5 h-5 text-teal-600" />
-          <h3 className="font-body font-bold text-text-dark">Recent Bookings</h3>
+        <div className="px-6 py-4 border-b border-border-light flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-teal-600" />
+            <h3 className="font-body font-bold text-text-dark">Recent Bookings (Filtered)</h3>
+          </div>
+          <AdminBtn onClick={exportCSV} variant="ghost" size="sm" loading={exporting} className="sm:hidden">
+            <Download className="w-4 h-4" /> Export CSV
+          </AdminBtn>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-body-sm">
             <thead>
               <tr className="border-b border-border-light bg-cream-50">
                 {['Ref','Client','Service','Date','Mode','Status','Amount'].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-label font-bold text-text-gray uppercase tracking-wider">{h}</th>
+                  <th key={h} className="text-left px-5 py-3 text-label font-bold text-text-gray uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-text-gray">Loading…</td></tr>
-              ) : bookings.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-text-gray">No bookings in this period</td></tr>
+                <tr><td colSpan={7} className="px-5 py-8 text-center text-text-gray">Loading data…</td></tr>
+              ) : recentBookings.length === 0 ? (
+                <tr><td colSpan={7} className="px-5 py-8 text-center text-text-gray">No bookings found in this period</td></tr>
               ) : (
-                bookings.slice(0, 20).map((b) => (
+                recentBookings.map((b) => (
                   <tr key={b.id} className="border-b border-border-light last:border-0 hover:bg-cream-50 transition-colors">
-                    <td className="px-4 py-3 font-mono text-label">{b.booking_ref || '—'}</td>
-                    <td className="px-4 py-3 font-semibold text-text-dark">{b.client_name}</td>
-                    <td className="px-4 py-3 text-text-gray">{b.service_title}</td>
-                    <td className="px-4 py-3 text-text-gray">{b.session_date}</td>
-                    <td className="px-4 py-3 text-text-gray capitalize">{b.session_mode}</td>
-                    <td className="px-4 py-3">
-                      <span className={cn('text-label font-bold px-2.5 py-0.5 rounded-full border',
+                    <td className="px-5 py-3.5 font-mono text-label">{b.booking_ref || '—'}</td>
+                    <td className="px-5 py-3.5 font-semibold text-text-dark">{b.client_name}</td>
+                    <td className="px-5 py-3.5 text-text-gray truncate max-w-[150px]">{b.service_title}</td>
+                    <td className="px-5 py-3.5 text-text-gray whitespace-nowrap">{formatShortDate(b.session_date)}</td>
+                    <td className="px-5 py-3.5 text-text-gray capitalize">{b.session_mode?.replace('_', ' ')}</td>
+                    <td className="px-5 py-3.5">
+                      <span className={cn('text-[10px] font-bold px-2 py-1 rounded-full border uppercase tracking-wider',
                         b.status === 'confirmed' ? 'bg-green-50 text-green-700 border-green-200' :
+                        b.status === 'completed' ? 'bg-teal-50 text-teal-700 border-teal-200' :
                         b.status === 'cancelled' ? 'bg-red-50 text-red-600 border-red-200' :
                         'bg-amber-50 text-amber-600 border-amber-200'
                       )}>{b.status}</span>
                     </td>
-                    <td className="px-4 py-3 font-bold">
+                    <td className="px-5 py-3.5 font-bold whitespace-nowrap">
                       {b.status === 'cancelled' ? (
-                        <div>
-                          <span className="text-red-400 line-through text-label">₹{(b.amount_inr || 0).toLocaleString('en-IN')}</span>
-                          <span className="block text-label text-text-gray">
-                            Refund: ₹{calcRefund(b).toLocaleString('en-IN')}
-                            {(() => {
-                              const hrs = (new Date(`${b.session_date}T${b.session_time || '00:00'}`) - new Date(b.cancelled_at || Date.now())) / 3600000;
-                              return hrs > 24 ? ' (100%)' : hrs > 0 ? ' (50%)' : ' (0%)';
-                            })()}
-                          </span>
-                        </div>
+                         <span className="text-red-400 line-through text-label">{formatCurrency(b.amount_inr || 0)}</span>
                       ) : (
-                        <span className="text-text-dark">₹{(b.amount_inr || 0).toLocaleString('en-IN')}</span>
+                        <span className="text-text-dark">{formatCurrency(b.amount_inr || 0)}</span>
                       )}
                     </td>
                   </tr>

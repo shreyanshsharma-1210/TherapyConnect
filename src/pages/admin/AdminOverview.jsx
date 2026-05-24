@@ -1,17 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, BookOpen, MessageSquareQuote, IndianRupee, TrendingUp, Clock, ChevronRight } from 'lucide-react';
 import { adminRepository } from '@/repositories/adminRepository';
 import { PageHeader, StatCard, AdminCard, StatusBadge } from '@/components/admin/AdminComponents';
 import { formatCurrency } from '@/utils/formatting';
 import { cn } from '@/lib/utils';
+import { useInvalidation, keys } from '@/lib/invalidationManager';
+import { useRealtimeSubscription } from '@/lib/realtime/realtimeManager';
 
 export default function AdminOverview() {
   const [stats,          setStats]          = useState(null);
   const [recentBookings, setRecentBookings] = useState([]);
   const [loading,        setLoading]        = useState(true);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     Promise.all([
       adminRepository.getStats(),
       adminRepository.getAllBookings({ pageSize: 5 }),
@@ -20,6 +22,23 @@ export default function AdminOverview() {
       setRecentBookings(b.data || []);
     }).finally(() => setLoading(false));
   }, []);
+
+  // Centralized realtime subscriptions for live dashboard events
+  useRealtimeSubscription('bookings');
+  useRealtimeSubscription('payments');
+  useRealtimeSubscription('blog_posts');
+  useRealtimeSubscription('testimonials');
+
+  // Trigger state invalidation and reload stats instantly
+  useInvalidation(keys.BOOKINGS, load);
+  useInvalidation(keys.PAYMENTS, load);
+  useInvalidation(keys.BLOGS, load);
+  useInvalidation(keys.TESTIMONIALS, load);
+
+  useEffect(() => {
+    setLoading(true);
+    load();
+  }, [load]);
 
   if (loading) {
     return (
@@ -52,7 +71,7 @@ export default function AdminOverview() {
         />
         <StatCard
           label="Revenue"
-          value={`₹${((stats?.totalRevenue || 0) / 100).toLocaleString('en-IN')}`}
+          value={formatCurrency(stats?.totalRevenue || 0)}
           icon={IndianRupee}
           color="green"
           trend="All time"

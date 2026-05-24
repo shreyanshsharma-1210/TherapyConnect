@@ -14,6 +14,7 @@ class InvalidationManager {
       AVAILABILITY: 'availability',
       SERVICES: 'services',
       THERAPIST_PROFILE: 'therapist_profile',
+      COUPONS: 'coupons',
     };
   }
 

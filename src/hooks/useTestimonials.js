@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { testimonialService } from '@/services/testimonialService';
 import { realtimeManager } from '@/lib/realtimeManager';
+import { useInvalidation, keys } from '@/lib/invalidationManager';
 
 function mapTestimonial(row) {
   return {
@@ -12,7 +13,8 @@ function mapTestimonial(row) {
     content:      row.content,
     rating:       row.rating,
     featured:     row.is_featured,
-    verified:     row.is_approved,
+    verified:     row.is_verified,
+    sourceType:   row.source_type,
     serviceTitle: row.service_title,
   };
 }
@@ -22,7 +24,7 @@ export function useTestimonials({ limit = 20, featuredOnly = false } = {}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
+  const refetch = useCallback(() => {
     setLoading(true);
     const fetch = featuredOnly
       ? testimonialService.getFeatured()
@@ -39,6 +41,13 @@ export function useTestimonials({ limit = 20, featuredOnly = false } = {}) {
         setTestimonials([]);
       })
       .finally(() => setLoading(false));
+  }, [featuredOnly]);
+
+  // Reconnect & cross-tab stale-state recovery
+  useInvalidation(keys.TESTIMONIALS, refetch);
+
+  useEffect(() => {
+    refetch();
 
     // Realtime subscription for testimonials (approved only for public)
     const channel = realtimeManager.subscribe('testimonials', {
@@ -72,7 +81,7 @@ export function useTestimonials({ limit = 20, featuredOnly = false } = {}) {
     return () => {
       realtimeManager.unsubscribe(`realtime:testimonials:is_approved=eq.true`);
     };
-  }, [limit, featuredOnly]);
+  }, [limit, featuredOnly, refetch]);
 
   return { testimonials, loading, error };
 }

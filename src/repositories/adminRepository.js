@@ -77,13 +77,12 @@ export const adminRepository = {
 
   // ── Testimonials ────────────────────────────────────────────
   async getAllTestimonials() {
-    return query(
-      supabase
-        .from('testimonials')
-        .select('*')
-        .is('deleted_at', null)
-        .order('display_order', { ascending: true })
-    );
+    const { data, error } = await supabase
+      .rpc('get_testimonials_with_bookings');
+    if (error) throw error;
+    return (data || [])
+      .filter(t => t.deleted_at === null)
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0) || new Date(b.created_at) - new Date(a.created_at));
   },
 
   async upsertTestimonial(data) {

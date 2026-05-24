@@ -19,6 +19,8 @@ import { useToast }        from '@/context/ToastContext';
 import { supabase }         from '@/lib/supabase';
 import { PageHeader, AdminCard, AdminBtn, AdminSelect, AdminInput } from '@/components/admin/AdminComponents';
 import { cn } from '@/lib/utils';
+import { useInvalidation, keys } from '@/lib/invalidationManager';
+import { useRealtimeSubscription } from '@/lib/realtime/realtimeManager';
 
 const LEVEL_STYLES = {
   available:   { dot: 'bg-green-500',  pill: 'bg-green-50 text-green-700 border-green-200',   label: 'Available'   },
@@ -101,6 +103,20 @@ export default function AdminAvailability() {
       if (data?.user) setUserId(data.user.id);
     });
   }, []);
+
+  // Centralized realtime subscriptions for schedule data sync
+  useRealtimeSubscription('therapist_availability');
+  useRealtimeSubscription('availability_rules');
+  useRealtimeSubscription('therapist_vacations');
+  useRealtimeSubscription('blocked_time_ranges');
+
+  // Trigger live state invalidation and reload active tabs
+  useInvalidation(keys.AVAILABILITY, () => {
+    console.log('[AdminAvailability] Invalidation event received. Re-syncing active views...');
+    loadCalendar();
+    loadRules();
+    loadVacationsAndBlocks();
+  });
 
   // Handle URL redirect query parameters
   useEffect(() => {

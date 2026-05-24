@@ -1,7 +1,12 @@
 export function formatCurrency(amount, currency = '₹') {
+  if (amount >= 10000000) {
+    return `${currency}${(amount / 10000000).toFixed(1).replace(/\.0$/, '')}Cr`;
+  }
+  if (amount >= 100000) {
+    return `${currency}${(amount / 100000).toFixed(1).replace(/\.0$/, '')}L`;
+  }
   return `${currency}${amount.toLocaleString('en-IN')}`;
 }
-
 export function formatDate(dateStr, options = {}) {
   if (!dateStr) return '';
   const date = new Date(dateStr);

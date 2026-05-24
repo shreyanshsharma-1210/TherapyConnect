@@ -16,7 +16,7 @@ const NAV = [
   { to: '/admin/testimonials',icon: MessageSquareQuote, label: 'Testimonials'  },
   { to: '/admin/availability',icon: CalendarClock,      label: 'Availability'  },
   { to: '/admin/profile',     icon: User,               label: 'Profile'       },
-  { to: '/admin/reporting',   icon: BarChart3,           label: 'Reporting'     },
+  { to: '/admin/analytics',   icon: BarChart3,           label: 'Analytics'     },
 ];
 
 function NavItem({ to, icon: Icon, label, end, onClick }) {

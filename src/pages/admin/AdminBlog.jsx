@@ -222,6 +222,9 @@ function BlogForm({ post, onSave, onCancel }) {
   );
 }
 
+import { useInvalidation, keys } from '@/lib/invalidationManager';
+import { useRealtimeSubscription } from '@/lib/realtime/realtimeManager';
+
 export default function AdminBlog() {
   const [posts,    setPosts]   = useState([]);
   const [loading,  setLoading] = useState(true);
@@ -235,6 +238,12 @@ export default function AdminBlog() {
     catch { toast({ type: 'error', title: 'Failed to load posts' }); }
     finally { setLoading(false); }
   }, [toast]);
+
+  // Centralized realtime subscription
+  useRealtimeSubscription('blog_posts');
+
+  // Handle live realtime updates in the background
+  useInvalidation(keys.BLOGS, load);
 
   useEffect(() => { load(); }, [load]);
 

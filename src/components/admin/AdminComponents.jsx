@@ -13,7 +13,7 @@ export function PageHeader({ title, subtitle, action }) {
   );
 }
 
-export function StatCard({ label, value, icon: Icon, color = 'teal', trend }) {
+export function StatCard({ label, value, icon: Icon, color = 'teal', trend, loading }) {
   const colors = {
     teal:   'bg-teal-50   text-teal-700   border-teal-100',
     coral:  'bg-coral-50  text-coral      border-coral-100',
@@ -21,16 +21,20 @@ export function StatCard({ label, value, icon: Icon, color = 'teal', trend }) {
     amber:  'bg-amber-50  text-amber-700  border-amber-100',
   };
   return (
-    <div className="bg-white rounded-2xl border border-border-light shadow-level-1 p-5 flex items-center gap-4">
+    <div className="bg-white rounded-2xl border border-border-light shadow-level-1 p-5 flex items-center gap-4 min-w-0">
       {Icon && (
         <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center border shrink-0', colors[color])}>
           <Icon className="w-5 h-5" />
         </div>
       )}
-      <div>
-        <p className="text-label text-text-gray uppercase tracking-wide">{label}</p>
-        <p className="font-display font-bold text-h3 text-text-dark leading-none mt-0.5">{value}</p>
-        {trend && <p className="text-label text-text-gray mt-0.5">{trend}</p>}
+      <div className="min-w-0 flex-1">
+        <p className="text-label text-text-gray uppercase tracking-wide truncate">{label}</p>
+        {loading ? (
+          <div className="h-8 bg-cream-50 rounded mt-1 mb-1 animate-pulse" />
+        ) : (
+          <p className="font-display font-bold text-h4 xl:text-h3 text-text-dark leading-none mt-1 break-words">{value}</p>
+        )}
+        {trend && <p className="text-label text-text-gray mt-1 truncate">{trend}</p>}
       </div>
     </div>
   );

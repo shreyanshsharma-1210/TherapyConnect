@@ -682,6 +682,7 @@ function StarPicker({ value, onChange }) {
 function TestimonialTab({ user, profile }) {
   const [existing, setExisting]   = useState(null);
   const [loading,  setLoading]    = useState(true);
+  const [eligible, setEligible]   = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ content: '', rating: 5, service_title: '' });
   const [submitted, setSubmitted] = useState(false);
@@ -693,9 +694,14 @@ function TestimonialTab({ user, profile }) {
     }
     setLoading(true);
 
-    supabase
+    const checkEligible = supabase
+      .rpc('check_testimonial_eligibility', { user_uuid: user.id })
+      .then(({ data }) => setEligible(!!data))
+      .catch((err) => console.error('[TestimonialTab] Eligibility check error:', err));
+
+    const fetchTestimonial = supabase
       .from('testimonials')
-      .select('id, content, rating, service_title, is_approved, created_at')
+      .select('id, content, rating, service_title, is_approved, created_at, is_verified')
       .eq('user_id', user.id)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
@@ -705,8 +711,9 @@ function TestimonialTab({ user, profile }) {
         if (error) console.error('[TestimonialTab] Fetch error:', error);
         if (data) setExisting(data);
       })
-      .catch((err) => console.error('[TestimonialTab] Unexpected error:', err))
-      .finally(() => setLoading(false));
+      .catch((err) => console.error('[TestimonialTab] Unexpected error:', err));
+
+    Promise.all([checkEligible, fetchTestimonial]).finally(() => setLoading(false));
 
     // Realtime subscription for this user's testimonials
     const channel = supabase
@@ -746,10 +753,11 @@ function TestimonialTab({ user, profile }) {
         .insert({
           user_id:       user.id,
           author_name:   profile?.full_name || user.email,
-          author_role:   profile?.phone ? 'Client' : 'Client',
+          author_role:   'Client',
           content:       form.content.trim(),
           rating:        form.rating,
           service_title: form.service_title.trim() || null,
+          source_type:   'user_submission',
           is_approved:   false,
           is_featured:   false,
           is_visible:    true,
@@ -767,6 +775,37 @@ function TestimonialTab({ user, profile }) {
   };
 
   if (loading) return <div className="h-40 rounded-2xl bg-cream-50 animate-pulse" />;
+
+  if (!eligible) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="bg-gradient-to-br from-cream-50 via-white to-coral-50/10 rounded-3xl border border-coral-100/50 p-8 md:p-10 shadow-level-1 text-center max-w-2xl mx-auto flex flex-col items-center gap-6"
+      >
+        <div className="w-16 h-16 rounded-2xl bg-coral-50/85 flex items-center justify-center text-coral shadow-inner">
+          <Heart className="w-8 h-8 fill-coral/10 animate-pulse" />
+        </div>
+        
+        <div className="space-y-2">
+          <h3 className="font-display font-bold text-2xl text-text-dark tracking-tight">
+            You have not completed any session yet
+          </h3>
+          <p className="text-body-sm text-text-gray max-w-md mx-auto leading-relaxed">
+            Start your healing journey to share your experience and help others discover trusted therapy support.
+          </p>
+        </div>
+
+        <Link
+          to="/book"
+          className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-coral text-white font-semibold text-body-sm hover:bg-coral-600 shadow-coral/20 shadow-lg hover:shadow-coral/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+        >
+          Book Your First Session
+        </Link>
+      </motion.div>
+    );
+  }
 
   if (existing) {
     const statusCfg = existing.is_approved

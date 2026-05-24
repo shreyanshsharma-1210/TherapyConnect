@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { bookingService } from '@/services/bookingService';
 import { useAuth }        from '@/context/AuthContext';
 import { realtimeManager } from '@/lib/realtimeManager';
+import { useInvalidation, keys } from '@/lib/invalidationManager';
 
 export function useBookings({ forAdmin = false } = {}) {
   const { user, isAuthenticated, isAdmin } = useAuth();
@@ -13,6 +14,9 @@ export function useBookings({ forAdmin = false } = {}) {
     if (!isAuthenticated) return;
     setLoading(true);
     try {
+      const { supabase } = await import('@/lib/supabase');
+      await supabase.rpc('auto_complete_past_bookings').catch(e => console.warn('[useBookings] Auto-complete failed:', e));
+
       const data = forAdmin && isAdmin
         ? await bookingService.getAllBookings()
         : await bookingService.getUserBookings(user?.id);
@@ -23,6 +27,9 @@ export function useBookings({ forAdmin = false } = {}) {
       setLoading(false);
     }
   }, [user, isAuthenticated, isAdmin, forAdmin]);
+
+  // Reconnect & cross-tab stale-state recovery
+  useInvalidation(keys.BOOKINGS, fetch);
 
   useEffect(() => {
     if (!isAuthenticated) { setBookings([]); setLoading(false); return; }

@@ -98,7 +98,7 @@ function AppRoutes() {
           <Route path="testimonials" element={<AdminTestimonials />} />
           <Route path="availability" element={<AdminAvailability />} />
           <Route path="profile"    element={<AdminProfile />}      />
-          <Route path="reporting"  element={<AdminReporting />}    />
+          <Route path="analytics"  element={<AdminReporting />}    />
         </Route>
 
       </Routes>

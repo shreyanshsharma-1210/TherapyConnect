@@ -3,6 +3,7 @@ import { notificationService } from '@/services/notificationService';
 import { useAuth }             from '@/context/AuthContext';
 import { supabase }            from '@/lib/supabase';
 import { realtimeManager }     from '@/lib/realtimeManager';
+import { useInvalidation, keys } from '@/lib/invalidationManager';
 
 export function useNotifications() {
   const { user } = useAuth();
@@ -23,6 +24,9 @@ export function useNotifications() {
       setLoading(false);
     }
   }, [user]);
+
+  // Reconnect & cross-tab stale-state recovery — catches missed pushes
+  useInvalidation(keys.NOTIFICATIONS, load);
 
   useEffect(() => {
     load();

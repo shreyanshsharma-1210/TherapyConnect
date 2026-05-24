@@ -67,9 +67,9 @@ function TestimonialCard({ testimonial }) {
           </div>
         </div>
         {testimonial.verified && (
-          <span className="flex items-center gap-1 text-label text-coral font-semibold">
-            <BadgeCheck className="w-4 h-4" aria-hidden="true" />
-            Verified
+          <span className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider text-teal-700 bg-teal-50/80 px-2.5 py-0.5 rounded-full border border-teal-100/40">
+            <BadgeCheck className="w-3.5 h-3.5" aria-hidden="true" />
+            Verified Client
           </span>
         )}
       </div>
